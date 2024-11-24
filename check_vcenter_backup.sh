@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Nagios Plugin to check vCenter backup status
-#Created by offroadaaron
+# Created by offroadaaron
 
 # Default values (these can be overridden by command-line arguments)
 VCENTER_HOST="your_vcenter_host"
@@ -45,7 +45,14 @@ get_backup_details() {
 # Get backup job details
 BACKUP_DETAILS=$(get_backup_details)
 
-# Extract the backup status, start time, and end time using jq
+# Extract the number of successful and failed backups
+SUCCESSFUL_BACKUPS=$(echo "$BACKUP_DETAILS" | jq '[.value[] | select(.value.status == "SUCCEEDED")] | length')
+FAILED_BACKUPS=$(echo "$BACKUP_DETAILS" | jq '[.value[] | select(.value.status != "SUCCEEDED")] | length')
+
+# Get the number of backups
+BACKUP_COUNT=$(echo "$BACKUP_DETAILS" | jq -r '.value | length')
+
+# Extract the latest backup status and end time
 BACKUP_STATUS=$(echo "$BACKUP_DETAILS" | jq -r '.value[0].value.status')
 START_TIME=$(echo "$BACKUP_DETAILS" | jq -r '.value[0].value.start_time')
 END_TIME=$(echo "$BACKUP_DETAILS" | jq -r '.value[0].value.end_time')
@@ -71,7 +78,12 @@ TIME_DIFF=$(( (CURRENT_TIMESTAMP - BACKUP_END_TIMESTAMP_SEC) / 3600 ))
 if [[ ${TIME_DIFF} -ge ${AGE_THRESHOLD} ]]; then
   echo "CRITICAL: Last backup was ${TIME_DIFF} hours ago, exceeding threshold of ${AGE_THRESHOLD} hours"
   exit 2
-else
-  echo "OK: Last backup was ${TIME_DIFF} hours ago"
-  exit 0
 fi
+
+# Print the number of successful and failed backups
+echo "Number of successful backups: ${SUCCESSFUL_BACKUPS}"
+echo "Number of failed backups: ${FAILED_BACKUPS}"
+
+# Final OK message
+echo "OK: Last backup was ${TIME_DIFF} hours ago"
+exit 0
