@@ -17,3 +17,8 @@ https://www.virten.net/2021/03/nsx-t-backup-monitoring/ / https://github.com/fgr
 Found this plugin from the link above and I wasn't able to get it working with the lastest version of NSX. I've completed some changes and it works now for me. I've also change it from minutes to hours for backup age
 
 Note: I do not take any credit for this script.
+
+
+-------------------- check_nsx_alarms.py ---------------------
+
+This is the latest edition and just reports on alarms for NSX local manages
