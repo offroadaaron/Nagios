@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+#### Usage ####
+# check_veeam_backup.py --url https://<veeam server>:9419 --credentials_file <path> --vm_name <VM Name> --max_backup_age <Age in hours>
 import json
 import sys
 import argparse
