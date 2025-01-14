@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ./check_veeam_backupjobs.py --url https://<VEEAM SERVER>:9419 --credentials_file <PATH> --max_backup_age <AGE> --job_filter "<OPTIONAL FILTER>"
+# ./check_veeam_backupjobs.py --url https://<VEEAM SERVER>:9419 --credentials_file <PATH> --max_backup_age <AGE> --job_filter "<OPTIONAL FILTER>" --job_filter_mode <EQUALS>
 import json
 import sys
 import argparse
@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--credentials_file', help='Path to credentials file', required=True)
     parser.add_argument('--max_backup_age', help='Maximum allowed backup age in hours', required=True, type=int)
     parser.add_argument('--job_filter', help='Filter job names containing this string', default=None)
+    parser.add_argument('--job_filter_mode', help='Filter mode (equals|contains)', default='contains')
     args = parser.parse_args()
 
     import ssl
@@ -64,7 +65,13 @@ def main():
 
     jobs = [job for job in jobs_states['data']]
     if args.job_filter:
-        jobs = [job for job in jobs if args.job_filter.lower() in job['name'].lower()]
+        if args.job_filter_mode == 'equals':
+            jobs = [job for job in jobs if job['name'].lower() == args.job_filter.lower()]
+        elif args.job_filter_mode == 'contains':
+            jobs = [job for job in jobs if args.job_filter.lower() in job['name'].lower()]
+        else:
+            print(f"ERROR: Invalid job filter mode '{args.job_filter_mode}'")
+            sys.exit(1)
 
     warning_jobs = [job for job in jobs if job['lastResult'] == 'Warning']
     failed_jobs = [job for job in jobs if job['lastResult'] == 'Failed']
