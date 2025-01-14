@@ -71,41 +71,29 @@ def main():
     recent_jobs = [job for job in jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age)]
     recent_failed_jobs = [job for job in failed_jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age)]
 
-    if recent_jobs:
-        latest_recent_job = max(recent_jobs, key=lambda x: datetime.strptime(x['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z'))
-        if latest_recent_job['lastResult'] == 'Success':
-            print(f"OK: Last successful backup job '{latest_recent_job['name']}' is within the allowed age of {args.max_backup_age} hours")
-        elif latest_recent_job['lastResult'] == 'Warning':
-            print(f"WARNING: Last backup job '{latest_recent_job['name']}' had a warning and is within the allowed age of {args.max_backup_age} hours")
-        else:
-            print(f"CRITICAL: Last backup job '{latest_recent_job['name']}' failed and is within the allowed age of {args.max_backup_age} hours")
-    else:
-        print(f"CRITICAL: No backup jobs found within the allowed age of {args.max_backup_age} hours")
-
-    if warning_jobs:
-        print("Warning Jobs:")
-        for job in warning_jobs:
-            print(f"  - {job['name']}")
-
     if recent_failed_jobs:
-        print("Failed Jobs within the allowed age range:")
+        print(f"CRITICAL: Failed jobs within the allowed age range:")
         for job in recent_failed_jobs:
             print(f"  - {job['name']}")
-
-    if failed_jobs:
-        old_failed_jobs = [job for job in failed_jobs if job not in recent_failed_jobs]
-        if old_failed_jobs:
-            print("Failed Jobs older than the allowed age range:")
-            for job in old_failed_jobs:
-                print(f"  - {job['name']}")
+        sys.exit(2)
+    elif warning_jobs:
+        print(f"WARNING: Warning jobs within the allowed age range:")
+        for job in warning_jobs:
+            print(f"  - {job['name']}")
+        sys.exit(1)
+    elif recent_jobs:
+        latest_recent_job = max(recent_jobs, key=lambda x: datetime.strptime(x['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z'))
+        print(f"OK: Last successful backup job '{latest_recent_job['name']}' is within the allowed age of {args.max_backup_age} hours")
+        sys.exit(0)
+    else:
+        print(f"CRITICAL: No backup jobs found within the allowed age of {args.max_backup_age} hours")
+        sys.exit(2)
 
     old_jobs = [job for job in jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) < datetime.now() - timedelta(hours=args.max_backup_age)]
     if old_jobs:
         print("Old Jobs (not run within the last {} hours):".format(args.max_backup_age))
         for job in old_jobs:
             print(f"  - {job['name']}")
-
-    sys.exit(0)
 
 if __name__ == '__main__':
     main()
