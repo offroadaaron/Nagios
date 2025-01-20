@@ -37,6 +37,16 @@ def get_api_key(url, username, password):
     token_response = json.loads(response.stdout.decode('utf-8'))
     return token_response['access_token']
 
+def get_jobs(url, api_key):
+    headers = {
+        'accept': 'application/json',
+        'x-api-version': '1.2-rev0',
+        'Authorization': f'Bearer {api_key}'
+    }
+    req = urllib.request.Request(f'{url}/api/v1/jobs', headers=headers)
+    response = urllib.request.urlopen(req)
+    return json.loads(response.read().decode('utf-8'))
+
 def get_jobs_states(url, api_key):
     headers = {
         'accept': 'application/json',
@@ -52,8 +62,7 @@ def main():
     parser.add_argument('--url', help='Veeam server URL', required=True)
     parser.add_argument('--credentials_file', help='Path to credentials file', required=True)
     parser.add_argument('--max_backup_age', help='Maximum allowed backup age in hours', required=True, type=int)
-    parser.add_argument('--job_filter', help='Filter job names containing this string', default=None)
-    parser.add_argument('--job_filter_mode', help='Filter mode (equals|contains)', default='contains')
+    parser.add_argument('--job_filter', help='Filter jobs by name', default=None)
     args = parser.parse_args()
 
     import ssl
@@ -61,46 +70,27 @@ def main():
 
     username, password = read_credentials(args.credentials_file)
     api_key = get_api_key(args.url, username, password)
+    jobs = get_jobs(args.url, api_key)
     jobs_states = get_jobs_states(args.url, api_key)
 
-    jobs = [job for job in jobs_states['data']]
-    if args.job_filter:
-        if args.job_filter_mode == 'equals':
-            jobs = [job for job in jobs if job['name'].lower() == args.job_filter.lower()]
-        elif args.job_filter_mode == 'contains':
-            jobs = [job for job in jobs if args.job_filter.lower() in job['name'].lower()]
-        else:
-            print(f"ERROR: Invalid job filter mode '{args.job_filter_mode}'")
-            sys.exit(1)
+    # Create a dictionary to map job IDs to their corresponding status
+    job_status = {job['id']: job['isDisabled'] for job in jobs['data']}
 
-    warning_jobs = [job for job in jobs if job['lastResult'] == 'Warning']
-    failed_jobs = [job for job in jobs if job['lastResult'] == 'Failed']
-    recent_jobs = [job for job in jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age)]
-    recent_failed_jobs = [job for job in failed_jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age)]
+    failed_jobs = []
+    for job in jobs_states['data']:
+        job_name = job['name']
+        if args.job_filter is None or args.job_filter.lower() in job_name.lower():
+            if job_status.get(job['id'], True) == False and job['lastResult'] == 'Failed' and job['lastRun'] is not None and datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age):
+                failed_jobs.append(job)
 
-    if recent_failed_jobs:
+    if failed_jobs:
         print(f"CRITICAL: Failed jobs within the allowed age range:")
-        for job in recent_failed_jobs:
+        for job in failed_jobs:
             print(f"  - {job['name']}")
         sys.exit(2)
-    elif warning_jobs:
-        print(f"WARNING: Warning jobs within the allowed age range:")
-        for job in warning_jobs:
-            print(f"  - {job['name']}")
-        sys.exit(1)
-    elif recent_jobs:
-        latest_recent_job = max(recent_jobs, key=lambda x: datetime.strptime(x['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z'))
-        print(f"OK: Last successful backup job '{latest_recent_job['name']}' is within the allowed age of {args.max_backup_age} hours")
-        sys.exit(0)
     else:
-        print(f"CRITICAL: No backup jobs found within the allowed age of {args.max_backup_age} hours")
-        sys.exit(2)
-
-    old_jobs = [job for job in jobs if datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) < datetime.now() - timedelta(hours=args.max_backup_age)]
-    if old_jobs:
-        print("Old Jobs (not run within the last {} hours):".format(args.max_backup_age))
-        for job in old_jobs:
-            print(f"  - {job['name']}")
+        print(f"OK: No failed jobs found within the allowed age of {args.max_backup_age} hours")
+        sys.exit(0)
 
 if __name__ == '__main__':
     main()
