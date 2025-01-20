@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ./check_veeam_backupjobs.py --url https://<VEEAM SERVER>:9419 --credentials_file <PATH> --max_backup_age <AGE> --job_filter "<OPTIONAL FILTER>" --job_filter_mode <EQUALS>
+# ./check_veeam_backupjobs.py --url https://<VEEAM SERVER>:9419 --credentials_file <PATH> --max_backup_age <AGE> --job_filter "<OPTIONAL FILTER>"
 import json
 import sys
 import argparse
@@ -37,16 +37,6 @@ def get_api_key(url, username, password):
     token_response = json.loads(response.stdout.decode('utf-8'))
     return token_response['access_token']
 
-def get_jobs(url, api_key):
-    headers = {
-        'accept': 'application/json',
-        'x-api-version': '1.2-rev0',
-        'Authorization': f'Bearer {api_key}'
-    }
-    req = urllib.request.Request(f'{url}/api/v1/jobs', headers=headers)
-    response = urllib.request.urlopen(req)
-    return json.loads(response.read().decode('utf-8'))
-
 def get_jobs_states(url, api_key):
     headers = {
         'accept': 'application/json',
@@ -70,27 +60,37 @@ def main():
 
     username, password = read_credentials(args.credentials_file)
     api_key = get_api_key(args.url, username, password)
-    jobs = get_jobs(args.url, api_key)
     jobs_states = get_jobs_states(args.url, api_key)
 
-    # Create a dictionary to map job IDs to their corresponding status
-    job_status = {job['id']: job['isDisabled'] for job in jobs['data']}
-
     failed_jobs = []
+    successful_jobs = 0
+    warning_jobs = 0
     for job in jobs_states['data']:
         job_name = job['name']
-        if args.job_filter is None or args.job_filter.lower() in job_name.lower():
-            if job_status.get(job['id'], True) == False and job['lastResult'] == 'Failed' and job['lastRun'] is not None and datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age):
-                failed_jobs.append(job)
+        if job['lastRun'] is not None and datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age):
+            if job['lastResult'] == 'Success':
+                successful_jobs += 1
+            elif job['lastResult'] == 'Warning':
+                warning_jobs += 1
+            elif job['lastResult'] == 'Failed':
+                if args.job_filter is None or args.job_filter.lower() in job_name.lower():
+                    failed_jobs.append(job)
 
     if failed_jobs:
         print(f"CRITICAL: Failed jobs within the allowed age range:")
         for job in failed_jobs:
             print(f"  - {job['name']}")
+        print(f"Successful jobs: {successful_jobs}")
+        print(f"Warning jobs: {warning_jobs}")
         sys.exit(2)
     else:
         print(f"OK: No failed jobs found within the allowed age of {args.max_backup_age} hours")
-        sys.exit(0)
+        print(f"Successful jobs: {successful_jobs}")
+        print(f"Warning jobs: {warning_jobs}")
+        if warning_jobs > 0:
+            sys.exit(1)
+        else:
+            sys.exit(0)
 
 if __name__ == '__main__':
     main()
