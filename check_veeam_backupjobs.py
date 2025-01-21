@@ -68,12 +68,12 @@ def main():
     for job in jobs_states['data']:
         job_name = job['name']
         if job['lastRun'] is not None and datetime.strptime(job['lastRun'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None) > datetime.now() - timedelta(hours=args.max_backup_age):
-            if job['lastResult'] == 'Success':
-                successful_jobs += 1
-            elif job['lastResult'] == 'Warning':
-                warning_jobs.append(job)
-            elif job['lastResult'] == 'Failed':
-                if args.job_filter is None or args.job_filter.lower() in job_name.lower():
+            if args.job_filter is None or args.job_filter.lower() in job_name.lower():
+                if job['lastResult'] == 'Success':
+                    successful_jobs += 1
+                elif job['lastResult'] == 'Warning':
+                    warning_jobs.append(job)
+                elif job['lastResult'] == 'Failed':
                     failed_jobs.append(job)
 
     if failed_jobs:
