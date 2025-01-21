@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#Veeam API Version 1.2
 # ./check_veeam_backupjobs.py --url https://<VEEAM SERVER>:9419 --credentials_file <PATH> --max_backup_age <AGE> --job_filter "<OPTIONAL FILTER>"
 import json
 import sys
