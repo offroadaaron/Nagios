@@ -1,7 +1,7 @@
 #Create credentials file to look like below:
 #<domain>\<username>
 #<Password>
-#python3 check_veeam-EM-Repo-space.py https://<veeam-server>:9398 <veeam Credentials file location> '<Repo name' 80 90
+#python3 check_veeam-EM-Repo-space.py https://<veeam-enterprise-manager-server>:9398 <veeam Credentials file location> '<Repo name' 80 90
 #80 = Warning; 90 = Critical - Obviously change this as needed
 import http.client
 import ssl
